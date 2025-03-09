@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { uploadFile } from '../services/api';
+import { getOSSPolicy, uploadToOSS, createTask } from '../services/api';
+import Alert from './Alert';
 
 export default function UploadPanel({ onUploadStart, onUploadSuccess }) {
   const [file, setFile] = useState(null);
@@ -16,12 +17,10 @@ export default function UploadPanel({ onUploadStart, onUploadSuccess }) {
       onUploadStart();
       setError('');
       
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const taskId = await uploadFile(formData, (progress) => {
-        setProgress(Math.round(progress * 100));
-      });
+      // OSS直传逻辑
+      const policy = await getOSSPolicy();
+      await uploadToOSS(file, policy);
+      const taskId = await createTask(policy.filePath);
       
       onUploadSuccess(taskId);
     } catch (err) {
@@ -43,7 +42,7 @@ export default function UploadPanel({ onUploadStart, onUploadSuccess }) {
         </label>
       </div>
       
-      {error && <div className="error-message">{error}</div>}
+      {error && <Alert type="error" message={error} />}
       
       <button 
         onClick={handleSubmit}
@@ -51,6 +50,15 @@ export default function UploadPanel({ onUploadStart, onUploadSuccess }) {
       >
         {progress > 0 ? `上传中 ${progress}%` : '开始建模'}
       </button>
+
+      {progress > 0 && (
+        <div className="progress-bar">
+          <div 
+            className="progress-fill"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      )}
     </div>
   );
 }
