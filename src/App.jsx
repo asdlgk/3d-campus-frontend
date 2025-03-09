@@ -1,33 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import UploadPanel from './components/UploadPanel';
 import ModelViewer from './components/ModelViewer';
-import { checkTaskStatus } from './services/api';
+import SceneClassification from './components/SceneClassification';
+import { createTask } from './services/api';
+import useWebSocket from './hooks/useWebSocket';
 
 export default function App() {
   const [taskId, setTaskId] = useState(null);
   const [modelUrl, setModelUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [classification, setClassification] = useState({ 
+    sceneType: '', 
+    confidence: 0 
+  });
 
-  useEffect(() => {
-    if (!taskId) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const result = await checkTaskStatus(taskId);
-        if (result.status === 'completed') {
-          clearInterval(interval);
-          setModelUrl(result.model_url);
-        } else if (result.status === 'failed') {
-          clearInterval(interval);
-          alert('建模失败: ' + result.error);
-        }
-      } catch (error) {
-        console.error('状态检查失败:', error);
+  useWebSocket(
+    `ws://${import.meta.env.VITE_API_BASE_URL}/tasks/${taskId}/status`,
+    (message) => {
+      if (message.status === 'completed') {
+        setModelUrl(message.model_url);
+        setClassification({
+          sceneType: message.scene_type,
+          confidence: message.confidence
+        });
+      } else if (message.status === 'failed') {
+        alert(`建模失败: ${message.error}`);
       }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [taskId]);
+    }
+  );
 
   return (
     <div className="app-container">
@@ -37,7 +37,10 @@ export default function App() {
       </header>
 
       {modelUrl ? (
-        <ModelViewer modelUrl={modelUrl} />
+        <>
+          <SceneClassification {...classification} />
+          <ModelViewer modelUrl={modelUrl} />
+        </>
       ) : (
         <UploadPanel 
           onUploadStart={() => setIsUploading(true)}
